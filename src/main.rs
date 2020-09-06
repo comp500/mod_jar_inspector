@@ -198,25 +198,33 @@ fn main() -> Result<()> {
 
 	match opts.subcmd {
 		SubCommand::Mixin(mixin_cmd) => {
-			let mut collated_jars: BTreeMap<String, (BTreeSet<String>, EnumMap<Environment, BTreeSet<String>>)> = BTreeMap::new();
+			struct FabricJar {
+				file_names: BTreeSet<String>,
+				mixins: EnumMap<Environment, BTreeSet<String>>
+			}
+
+			let mut collated_jars: BTreeMap<String, FabricJar> = BTreeMap::new();
 
 			fn matches(dest: &str) -> impl FnMut(&String) -> bool + '_ {
 				move |name: &String| name.to_lowercase().contains(dest)
 			}
 
-			fn recursively_collate(dest: &mut BTreeMap<String, (BTreeSet<String>, EnumMap<Environment, BTreeSet<String>>)>, jar: TraversedJar, file_name: &str, filter: Option<String>) {
+			fn recursively_collate(dest: &mut BTreeMap<String, FabricJar>, jar: TraversedJar, file_name: &str, filter: Option<String>) {
 				if let TraversedJar::FabricJar{ mod_id, contained_jars, mixins, .. } = jar {
-					let collate_dest = dest.entry(mod_id).or_insert((BTreeSet::new(), enum_map! { _ => BTreeSet::new() }));
+					let collate_dest = dest.entry(mod_id).or_insert(FabricJar {
+						file_names: BTreeSet::new(),
+						mixins: enum_map! { _ => BTreeSet::new() }
+					});
 
-					collate_dest.0.insert(file_name.to_owned());
+					collate_dest.file_names.insert(file_name.to_owned());
 					if let Some(ref filter) = filter {
-						collate_dest.1[Environment::Both].extend((&mixins[Environment::Both]).iter().cloned().filter(matches(filter)));
-						collate_dest.1[Environment::Client].extend((&mixins[Environment::Client]).iter().cloned().filter(matches(filter)));
-						collate_dest.1[Environment::Server].extend((&mixins[Environment::Server]).iter().cloned().filter(matches(filter)));
+						collate_dest.mixins[Environment::Both].extend((&mixins[Environment::Both]).iter().cloned().filter(matches(filter)));
+						collate_dest.mixins[Environment::Client].extend((&mixins[Environment::Client]).iter().cloned().filter(matches(filter)));
+						collate_dest.mixins[Environment::Server].extend((&mixins[Environment::Server]).iter().cloned().filter(matches(filter)));
 					} else {
-						collate_dest.1[Environment::Both].extend((&mixins[Environment::Both]).iter().cloned());
-						collate_dest.1[Environment::Client].extend((&mixins[Environment::Client]).iter().cloned());
-						collate_dest.1[Environment::Server].extend((&mixins[Environment::Server]).iter().cloned());
+						collate_dest.mixins[Environment::Both].extend((&mixins[Environment::Both]).iter().cloned());
+						collate_dest.mixins[Environment::Client].extend((&mixins[Environment::Client]).iter().cloned());
+						collate_dest.mixins[Environment::Server].extend((&mixins[Environment::Server]).iter().cloned());
 					}
 
 					for contained_jar in contained_jars {
@@ -234,24 +242,24 @@ fn main() -> Result<()> {
 			let mut matched_jars = false;
 			for jar in &collated_jars {
 				// If there is a filter, hide jars that don't match the filter
-				if mixin_cmd.filter.is_some() && jar.1.1.values().all(|v| v.is_empty()) {
+				if mixin_cmd.filter.is_some() && jar.1.mixins.values().all(|v| v.is_empty()) {
 					continue;
 				}
 
 				matched_jars = true;
-				println!("{} ({})", jar.0, (&jar.1.0).iter().cloned().collect::<Vec<String>>().join(", "));
-				for mixin in jar.1.1[Environment::Both].iter() {
+				println!("{} ({})", jar.0, (&jar.1.file_names).iter().cloned().collect::<Vec<String>>().join(", "));
+				for mixin in jar.1.mixins[Environment::Both].iter() {
 					println!("    {}", mixin);
 				}
-				if !jar.1.1[Environment::Client].is_empty() {
+				if !jar.1.mixins[Environment::Client].is_empty() {
 					println!("Client:");
-					for mixin in jar.1.1[Environment::Client].iter() {
+					for mixin in jar.1.mixins[Environment::Client].iter() {
 						println!("    {}", mixin);
 					}
 				}
-				if !jar.1.1[Environment::Server].is_empty() {
+				if !jar.1.mixins[Environment::Server].is_empty() {
 					println!("Server:");
-					for mixin in jar.1.1[Environment::Server].iter() {
+					for mixin in jar.1.mixins[Environment::Server].iter() {
 						println!("    {}", mixin);
 					}
 				}
@@ -266,17 +274,25 @@ fn main() -> Result<()> {
 		},
 		SubCommand::JarInJar(jar_in_jar) => {
 			if jar_in_jar.reverse {
-				let mut reverse_tree: BTreeMap<String, (BTreeSet<String>, BTreeSet<String>)> = BTreeMap::new();
+				struct FabricMod {
+					file_names: BTreeSet<String>,
+					parent_ids: BTreeSet<String>
+				}
+
+				let mut reverse_tree: BTreeMap<String, FabricMod> = BTreeMap::new();
 				
-				fn build_recurse(jar: TraversedJar, file_name: &str, parent: Option<&str>, tree: &mut BTreeMap<String, (BTreeSet<String>, BTreeSet<String>)>) {
+				fn build_recurse(jar: TraversedJar, file_name: &str, parent: Option<&str>, tree: &mut BTreeMap<String, FabricMod>) {
 					match jar {
 						TraversedJar::NonMod => {}
 						TraversedJar::FabricJar{mod_id, contained_jars, ..} => {
-							let entry = tree.entry(mod_id.clone()).or_insert((BTreeSet::new(), BTreeSet::new()));
+							let entry = tree.entry(mod_id.clone()).or_insert(FabricMod {
+								file_names: BTreeSet::new(),
+								parent_ids: BTreeSet::new()
+							});
 
-							entry.0.insert(file_name.to_string());
+							entry.file_names.insert(file_name.to_string());
 							if let Some(parent) = parent {
-								entry.1.insert(parent.to_owned());
+								entry.parent_ids.insert(parent.to_owned());
 							}
 							for jar in contained_jars {
 								build_recurse(jar.1, jar.0.as_str(), Some(mod_id.as_str()), tree);
@@ -285,16 +301,16 @@ fn main() -> Result<()> {
 					}
 				}
 
-				fn print_recurse(id: &str, tree: &BTreeMap<String, (BTreeSet<String>, BTreeSet<String>)>, padding: usize) {
+				fn print_recurse(id: &str, tree: &BTreeMap<String, FabricMod>, padding: usize) {
 					let mod_data = &tree[id];
 
-					// Don't print on first level if it has no children
-					if padding == 0 && mod_data.1.is_empty() {
+					// Don't print on first level if it has no parents
+					if padding == 0 && mod_data.parent_ids.is_empty() {
 						return;
 					}
 
-					println!("{}{} ({})", "    ".repeat(padding), id, (&mod_data.0).iter().cloned().collect::<Vec<_>>().join(", "));
-					for parent_id in &mod_data.1 {
+					println!("{}{} ({})", "    ".repeat(padding), id, (&mod_data.file_names).iter().cloned().collect::<Vec<_>>().join(", "));
+					for parent_id in &mod_data.parent_ids {
 						print_recurse(&parent_id, tree, padding + 1);
 					}
 				}
