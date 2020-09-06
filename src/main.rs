@@ -92,7 +92,7 @@ fn traverse<R: Read + Seek>(source: R) -> Result<TraversedJar> {
 			let mut file_contents = vec![];
 			jar_file.read_to_end(&mut file_contents)?;
 
-			contained_jars.insert(jar_entry.file.split("/").last().map(|s| s.to_owned()).unwrap_or(jar_entry.file), 
+			contained_jars.insert(jar_entry.file.split('/').last().map(|s| s.to_owned()).unwrap_or(jar_entry.file), 
 			traverse(Cursor::new(file_contents))?);
 		}
 
@@ -210,13 +210,13 @@ fn main() -> Result<()> {
 
 					collate_dest.0.insert(file_name.to_owned());
 					if let Some(ref filter) = filter {
-						collate_dest.1[Environment::Both].extend((&mixins[Environment::Both]).into_iter().cloned().filter(matches(filter)));
-						collate_dest.1[Environment::Client].extend((&mixins[Environment::Client]).into_iter().cloned().filter(matches(filter)));
-						collate_dest.1[Environment::Server].extend((&mixins[Environment::Server]).into_iter().cloned().filter(matches(filter)));
+						collate_dest.1[Environment::Both].extend((&mixins[Environment::Both]).iter().cloned().filter(matches(filter)));
+						collate_dest.1[Environment::Client].extend((&mixins[Environment::Client]).iter().cloned().filter(matches(filter)));
+						collate_dest.1[Environment::Server].extend((&mixins[Environment::Server]).iter().cloned().filter(matches(filter)));
 					} else {
-						collate_dest.1[Environment::Both].extend((&mixins[Environment::Both]).into_iter().cloned());
-						collate_dest.1[Environment::Client].extend((&mixins[Environment::Client]).into_iter().cloned());
-						collate_dest.1[Environment::Server].extend((&mixins[Environment::Server]).into_iter().cloned());
+						collate_dest.1[Environment::Both].extend((&mixins[Environment::Both]).iter().cloned());
+						collate_dest.1[Environment::Client].extend((&mixins[Environment::Client]).iter().cloned());
+						collate_dest.1[Environment::Server].extend((&mixins[Environment::Server]).iter().cloned());
 					}
 
 					for contained_jar in contained_jars {
@@ -234,22 +234,22 @@ fn main() -> Result<()> {
 			let mut matched_jars = false;
 			for jar in &collated_jars {
 				// If there is a filter, hide jars that don't match the filter
-				if mixin_cmd.filter.is_some() && jar.1.1.values().all(|v| v.len() == 0) {
+				if mixin_cmd.filter.is_some() && jar.1.1.values().all(|v| v.is_empty()) {
 					continue;
 				}
 
 				matched_jars = true;
-				println!("{} ({})", jar.0, (&jar.1.0).into_iter().cloned().collect::<Vec<String>>().join(", "));
+				println!("{} ({})", jar.0, (&jar.1.0).iter().cloned().collect::<Vec<String>>().join(", "));
 				for mixin in jar.1.1[Environment::Both].iter() {
 					println!("    {}", mixin);
 				}
-				if jar.1.1[Environment::Client].len() > 0 {
+				if !jar.1.1[Environment::Client].is_empty() {
 					println!("Client:");
 					for mixin in jar.1.1[Environment::Client].iter() {
 						println!("    {}", mixin);
 					}
 				}
-				if jar.1.1[Environment::Server].len() > 0 {
+				if !jar.1.1[Environment::Server].is_empty() {
 					println!("Server:");
 					for mixin in jar.1.1[Environment::Server].iter() {
 						println!("    {}", mixin);
@@ -289,11 +289,11 @@ fn main() -> Result<()> {
 					let mod_data = &tree[id];
 
 					// Don't print on first level if it has no children
-					if padding == 0 && mod_data.1.len() == 0 {
+					if padding == 0 && mod_data.1.is_empty() {
 						return;
 					}
 
-					println!("{}{} ({})", "    ".repeat(padding), id, (&mod_data.0).into_iter().cloned().collect::<Vec<_>>().join(", "));
+					println!("{}{} ({})", "    ".repeat(padding), id, (&mod_data.0).iter().cloned().collect::<Vec<_>>().join(", "));
 					for parent_id in &mod_data.1 {
 						print_recurse(&parent_id, tree, padding + 1);
 					}
