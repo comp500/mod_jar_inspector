@@ -164,7 +164,10 @@ struct MixinCommand {
 struct JarInJarCommand {
 	/// Display the reverse tree, only showing jars which are contained by other jars
 	#[clap(short, long)]
-	reverse: bool
+	reverse: bool,
+	/// Filter the list of top-level mods (by mod id) using this search string
+	#[clap(long)]
+	filter: Option<String>
 }
 
 /// Prints raw traversal output
@@ -301,6 +304,11 @@ fn main() -> Result<()> {
 				}
 	
 				for jar in &reverse_tree {
+					if let Some(ref filter) = jar_in_jar.filter {
+						if !jar.0.to_lowercase().contains(filter.to_lowercase().as_str()) {
+							continue;
+						}
+					}
 					print_recurse(&jar.0, &reverse_tree, 0);
 				}
 			} else {
@@ -319,6 +327,13 @@ fn main() -> Result<()> {
 				}
 	
 				for jar in processed_jars {
+					if let Some(ref filter) = jar_in_jar.filter {
+						if let TraversedJar::FabricJar{mod_id, ..} = &jar.1 {
+							if !mod_id.to_lowercase().contains(filter.to_lowercase().as_str()) {
+								continue;
+							}
+						}
+					}
 					print_recurse(jar.1, jar.0.file_name().map(|f| f.to_str().unwrap()).unwrap_or(jar.0.to_str().unwrap()), 0);
 				}
 			}
