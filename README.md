@@ -6,8 +6,38 @@
 ### Mixin listing
 `mod_jar_inspector mixin` lists all the mixins in Fabric mods in the current folder. The `--filter` argument can be used to filter the mixins that are shown.
 
+Example output:
+
+```
+$ mod_jar_inspector mixin --filter crash
+Reading mods in the current folder...
+fabric-crash-report-info-v1 (fabric-crash-report-info-v1-0.1.2+b7f9825d4e.jar)
+    MixinCrashReport
+patchouli (Patchouli-1.16-40-FABRIC.jar)
+Client:
+    client.MixinCrashReport
+```
+
 ### Jar in jar listing
 `mod_jar_inspector jij` displays a tree of included mods in Fabric mods in the current folder. The `--reverse` argument reverses the order of the tree, so mods are shown with mods that include them, and the `--filter` argument can be used to filter the top-level list of mods.
+
+Example output:
+
+```
+$ mod_jar_inspector jij --filter astromine
+Reading mods in the current folder...
+astromine (astromine-1.9.2+fabric-1.16.2.jar)
+    astromine-core (astromine-core-1.9.2+fabric-1.16.2.jar)
+        patchouli (Patchouli-1.16-40-FABRIC.jar)
+            fiber (fiber-0.23.0-1.jar)
+        autoconfig1u (autoconfig1u-3.2.2.jar)
+        blade (blade-fbdf8790.jar)
+            blue_endless_jankson (jankson-1.2.0.jar)
+        cardinal-components-base (cardinal-components-base-2.5.4.jar)
+        cardinal-components-block (cardinal-components-block-2.5.4.jar)
+        cardinal-components-chunk (cardinal-components-chunk-2.5.4.jar)
+...
+```
 
 ## Install
 ### From releases
