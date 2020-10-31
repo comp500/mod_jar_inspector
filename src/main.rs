@@ -55,6 +55,7 @@ struct FabricModJson {
 	jars: Vec<JarInJarListEntry>,
 	#[serde(default)]
 	mixins: Vec<MixinConfigListEntry>,
+	access_widener: Option<String>
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -80,6 +81,7 @@ enum TraversedJar {
 		mixins: EnumMap<Environment, Vec<String>>,
 		mixin_config_plugins: Vec<String>,
 		contained_jars: BTreeMap<String, TraversedJar>,
+		access_widener_contents: Option<String>,
 	},
 }
 
@@ -144,6 +146,14 @@ fn traverse<R: Read + Seek>(source: R) -> Result<TraversedJar> {
 			}
 		}
 
+		let access_widener_contents = if let Some(aw_file) = fabric_mod_json.access_widener {
+			let mut out = String::new();
+			zip.by_name(aw_file.as_str())?.read_to_string(&mut out)?;
+			Some(out)
+		} else {
+			None
+		};
+
 		return Ok(TraversedJar::FabricJar {
 			mod_name: fabric_mod_json.name,
 			mod_id: fabric_mod_json.id,
@@ -152,6 +162,7 @@ fn traverse<R: Read + Seek>(source: R) -> Result<TraversedJar> {
 			mixins,
 			mixin_config_plugins,
 			contained_jars,
+			access_widener_contents
 		});
 	}
 
@@ -170,6 +181,8 @@ enum SubCommand {
 	Mixin(MixinCommand),
 	#[clap(alias = "jij")]
 	JarInJar(JarInJarCommand),
+	#[clap(alias = "aw")]
+	AccessWidener(AccessWidenerCommand),
 	Raw(RawCommand),
 }
 
@@ -190,6 +203,15 @@ struct JarInJarCommand {
 	#[clap(short, long)]
 	reverse: bool,
 	/// Filter the list of top-level mods (by mod id) using this search string
+	#[clap(long)]
+	filter: Option<String>,
+}
+
+/// Prints access widener files in mods in the current folder
+#[derive(Clap, Debug)]
+#[clap(setting(AppSettings::UnifiedHelpMessage))]
+struct AccessWidenerCommand {
+	/// Filter the files using this search string
 	#[clap(long)]
 	filter: Option<String>,
 }
@@ -423,6 +445,85 @@ fn main() -> Result<()> {
 							.unwrap_or(jar.0.to_str().unwrap()),
 						0,
 					);
+				}
+			}
+		}
+		SubCommand::AccessWidener(aw_cmd) => {
+			struct FabricJar {
+				file_names: BTreeSet<String>,
+				access_wideners: BTreeSet<String>
+			}
+
+			let mut collated_jars: BTreeMap<String, FabricJar> = BTreeMap::new();
+
+			fn recursively_collate(
+				dest: &mut BTreeMap<String, FabricJar>, jar: TraversedJar, file_name: &str, filter: Option<String>,
+			) {
+				if let TraversedJar::FabricJar {
+					mod_id,
+					contained_jars,
+					access_widener_contents,
+					..
+				} = jar
+				{
+					let collate_dest = dest.entry(mod_id).or_insert(FabricJar {
+						file_names: BTreeSet::new(),
+						access_wideners: BTreeSet::new(),
+					});
+
+					collate_dest.file_names.insert(file_name.to_owned());
+					if let Some(ref access_widener_contents) = access_widener_contents {
+						if let Some(ref filter) = filter {
+							if access_widener_contents.to_lowercase().contains(filter) {
+								collate_dest.access_wideners.insert(access_widener_contents.clone());
+							}
+						} else {
+							collate_dest.access_wideners.insert(access_widener_contents.clone());
+						}
+					}
+
+					for contained_jar in contained_jars {
+						recursively_collate(dest, contained_jar.1, contained_jar.0.as_str(), (&filter).to_owned());
+					}
+				}
+			}
+
+			let filter = (&aw_cmd.filter).as_ref();
+			for jar in processed_jars {
+				recursively_collate(
+					&mut collated_jars,
+					jar.1,
+					jar.0
+						.file_name()
+						.map(|f| f.to_str().unwrap())
+						.unwrap_or(jar.0.to_str().unwrap()),
+					filter.map(|filter| filter.as_str().to_lowercase()),
+				);
+			}
+
+			let mut matched_jars = false;
+			for jar in &collated_jars {
+				if jar.1.access_wideners.is_empty() {
+					continue;
+				}
+
+				matched_jars = true;
+				println!(
+					"{} ({})",
+					jar.0,
+					(&jar.1.file_names).iter().cloned().collect::<Vec<String>>().join(", ")
+				);
+				for aw in jar.1.access_wideners.iter() {
+					for line in aw.lines() {
+						println!("    {}", line);
+					}
+				}
+			}
+			if !matched_jars {
+				if aw_cmd.filter.is_some() {
+					println!("No jars that match the given filter found!");
+				} else {
+					println!("No jars with AWs found!");
 				}
 			}
 		}

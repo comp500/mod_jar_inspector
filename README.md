@@ -39,6 +39,31 @@ astromine (astromine-1.9.2+fabric-1.16.2.jar)
 ...
 ```
 
+### Access widener listing
+`mod_jar_inspector aw` lists all the access wideners in Fabric mods in the current folder. The `--filter` argument can be used to filter the access wideners that are shown.
+
+Example output:
+
+```
+$ mod_jar_inspector aw --filter class_1011
+Reading mods in the current folder...
+slight-gui-modifications (slight-gui-modifications-1.3.0.jar)
+    accessWidener       v1      intermediary
+    accessible  class   net/minecraft/class_500
+    accessible  class   net/minecraft/class_526
+    accessible  class   net/minecraft/class_437
+    accessible  class   net/minecraft/class_1011
+    accessible  class   net/minecraft/class_473$class_5234
+    accessible  class   net/minecraft/class_310
+    accessible  class   net/minecraft/class_332
+    accessible  class   net/minecraft/class_442
+    accessible  class   net/minecraft/class_473$class_5233
+    accessible  method  net/minecraft/class_473$class_5234      <init>  (II)V
+    accessible  method  net/minecraft/class_500 method_20378    (Z)V
+    accessible  method  net/minecraft/class_500 method_20377    (Z)V
+...
+```
+
 ## Install
 ### From releases
 1. Download the latest `mod_jar_inspector` binary at https://github.com/comp500/mod_jar_inspector/releases/
